@@ -13,9 +13,12 @@ void Cache_construct(Cache *pCache, uint64_t c, uint64_t b, uint64_t s, int leve
   pCache->valid = (bool *)calloc(pCache->lines, sizeof(bool));
   pCache->prefetched = (bool *)calloc(pCache->lines, sizeof(bool));
   pCache->last_access = (time_t *)calloc(pCache->lines, sizeof(time_t));
-  int bytes_p_b = pow(2, pCache->b);
-  int num_set = 16;
-  //printf("L%d cache created: tag_size=%llu, index_size=%i, offset_size=%llu, bytes_per_block=%i, blocks_per_set=%llu, num_set=%i\n", level, 64 - pCache->b - Cache_index_length(pCache), Cache_index_length(pCache), pCache->b, bytes_p_b, pCache->ways, num_set);
+
+  if(!pCache->tagstore || !pCache->dirty || !pCache->prefetched || !pCache->last_access || !pCache->valid)
+  {
+    printf("could not allocate");
+    exit(0);
+  }
 }
 
 void Cache_destroy(Cache *pCache)
@@ -67,6 +70,7 @@ CacheStatus Cache_write(Cache *pCache, uint64_t address)
   }
   pCache->tagstore[victim_lookup] = tag;
   pCache->valid[victim_lookup] = true;
+  pCache->prefetched[victim_lookup] = false;
   time(&pCache->last_access[victim_lookup]);
 
   return ret_val;
@@ -150,6 +154,7 @@ CacheStatus Cache_read(Cache *pCache, uint64_t address)
     ret_val = MISS;
   }
   pCache->tagstore[victim_lookup] = tag;
+  pCache->prefetched[victim_lookup] = false;
   pCache->valid[victim_lookup] = true;
   time(&pCache->last_access[victim_lookup]);
   return ret_val;
@@ -171,8 +176,8 @@ uint64_t Cache_tag_calc(Cache *pCache, uint64_t address)
 
 uint64_t Cache_lookup_calc(Cache *pCache, int way, uint64_t index)
 {
-  int chunk = pCache->lines / pCache->ways;
-  return (way * chunk) + index;
+  int chunkSize = pCache->lines / pCache->ways;
+  return (way * chunkSize) + index;
 }
 
 int Cache_index_length(Cache *pCache)
