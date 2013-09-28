@@ -1,0 +1,4 @@
+To build, type "make".
+To run with a sample trace, type "./cachesim < traces/astar.trace".
+Fill out functions in "cachesim.cpp" to complete this project.
+Note that you are only allowed to change "cachesim.cpp".

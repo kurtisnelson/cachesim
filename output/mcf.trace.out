@@ -1,0 +1,21 @@
+Cache Settings
+C1: 12
+B1: 5
+S1: 3
+C2: 15
+B2: 6
+S2: 5
+K: 2
+
+Cache Statistics
+L1 Accesses: 507700
+Reads Issued by CPU: 280182
+L1 Read misses: 2041
+L2 Read misses: 5502
+Writes Issued by CPU: 227518
+L1 Write misses: 8513
+L2 Write misses: 0
+Write backs to Main Memory: 4854
+Prefetched blocks: 0
+Successful prefetches: 0
+Average access time (AAT): 8.143281
