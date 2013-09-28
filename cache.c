@@ -35,9 +35,8 @@ CacheStatus Cache_write(Cache *pCache, uint64_t address)
   uint64_t index = Cache_index_calc(pCache, address);
   uint64_t tag = Cache_tag_calc(pCache, address);
   uint64_t victim_lookup = index;
-  //printf("|w|%llx", address);
 
-  for(int way = 0; way < pCache->ways; way++)
+  for(unsigned way = 0; way < pCache->ways; way++)
   {
     uint64_t lookup = Cache_lookup_calc(pCache, way, index);
     if(!pCache->valid[lookup] || pCache->last_access[lookup] < pCache->last_access[victim_lookup])
@@ -82,7 +81,7 @@ CacheStatus Cache_prefetch(Cache *pCache, uint64_t address)
   uint64_t tag = Cache_tag_calc(pCache, address);
   uint64_t victim_lookup = index;
 
-  for(int way = 0; way < pCache->ways; way++)
+  for(unsigned way = 0; way < pCache->ways; way++)
   {
     uint64_t lookup = Cache_lookup_calc(pCache, way, index);
     //Bookkeep who we should evict if needed
@@ -120,7 +119,7 @@ CacheStatus Cache_read(Cache *pCache, uint64_t address)
   uint64_t victim_lookup = index;
   //printf("|r|%llx", address);
 
-  for(int way = 0; way < pCache->ways; way++)
+  for(unsigned way = 0; way < pCache->ways; way++)
   {
     uint64_t lookup = Cache_lookup_calc(pCache, way, index);
     //Bookkeep who we should evict if needed

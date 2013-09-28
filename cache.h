@@ -16,7 +16,8 @@ typedef struct
         time_t* last_access;
         int level;
         uint64_t write_back;
-        uint64_t c, b, s, k, lines, ways;
+        uint64_t c, b, s, k;
+        uint64_t lines, ways;
 } Cache;
 
 typedef enum
