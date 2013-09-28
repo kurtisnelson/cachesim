@@ -108,7 +108,7 @@ CacheStatus Cache_read(Cache *pCache, uint64_t address)
     Cache_set_write_back(pCache, victim_lookup);
     ret_val = WRITE_BACK;
   }
-  
+
   pCache->tagstore[victim_lookup] = tag;
   pCache->prefetched[victim_lookup] = false;
   pCache->valid[victim_lookup] = true;
@@ -138,10 +138,10 @@ CacheStatus Cache_find(Cache* pCache, uint64_t tag, uint64_t index, bool dirty)
 
 uint64_t Cache_victim_lookup(Cache* pCache, uint64_t tag, uint64_t index)
 {
-  time_t min_time;
-  uint64_t min_lookup;
-  time(&min_time);
-  for(unsigned way = 0; way < pCache->ways; way++)
+  uint64_t min_lookup = Cache_lookup_calc(pCache, 0, index);
+  time_t min_time = pCache->last_access[min_lookup];
+
+  for(unsigned way = 1; way < pCache->ways; way++)
   {
     uint64_t lookup = Cache_lookup_calc(pCache, way, index);
     if(!pCache->valid[lookup] || pCache->last_access[lookup] < min_time)
