@@ -34,38 +34,17 @@ CacheStatus Cache_write(Cache *pCache, uint64_t address)
 {
   uint64_t index = Cache_index_calc(pCache, address);
   uint64_t tag = Cache_tag_calc(pCache, address);
-  uint64_t victim_lookup = Cache_lookup_calc(pCache, 0, index);
-
-  for(unsigned way = 0; way < pCache->ways; way++)
-  {
-    uint64_t lookup = Cache_lookup_calc(pCache, way, index);
-    if(!pCache->valid[lookup] || pCache->last_access[lookup] < pCache->last_access[victim_lookup])
-    {
-      victim_lookup = lookup;
-    }
-
-    if(pCache->valid[lookup] && pCache->tagstore[lookup] == tag)
-    {
-      //printf("|L%dWriteHit", pCache->level);
-      pCache->dirty[lookup] = true;
-      time(&pCache->last_access[lookup]); // Freshen the LRU
-      if(pCache->prefetched[lookup])
-      {
-        pCache->prefetched[lookup] = false;
-        return PREFETCH_HIT;
-      }
-      return HIT;
-    }
-  }
-  //printf("|L%dWriteMiss", pCache->level);
-
   CacheStatus ret_val;
+
+  ret_val = Cache_find(pCache, tag, index, true);
+  if(ret_val != MISS)
+          return ret_val;
+
+  uint64_t victim_lookup = Cache_victim_lookup(pCache, tag, index);
   if(pCache->dirty[victim_lookup])
   {
     Cache_set_write_back(pCache, victim_lookup);
     ret_val = WRITE_BACK;
-  }else{
-    ret_val = MISS;
   }
   pCache->tagstore[victim_lookup] = tag;
   pCache->valid[victim_lookup] = true;
@@ -85,7 +64,7 @@ CacheStatus Cache_prefetch(Cache *pCache, uint64_t address)
   {
     uint64_t lookup = Cache_lookup_calc(pCache, way, index);
     //Bookkeep who we should evict if needed
-    if(!pCache->valid[lookup] || pCache->last_access[lookup] < pCache->last_access[victim_lookup])
+    if(pCache->last_access[lookup] < pCache->last_access[victim_lookup])
     {
       victim_lookup = lookup;
     }
@@ -116,21 +95,35 @@ CacheStatus Cache_read(Cache *pCache, uint64_t address)
 {
   uint64_t index = Cache_index_calc(pCache, address);
   uint64_t tag = Cache_tag_calc(pCache, address);
-  uint64_t victim_lookup = Cache_lookup_calc(pCache, 0, index);
-  //printf("|r|%llx", address);
+  CacheStatus ret_val;
 
+  ret_val = Cache_find(pCache, tag, index, false);
+  if(ret_val != MISS)
+          return ret_val;
+
+  uint64_t victim_lookup = Cache_victim_lookup(pCache, tag, index);
+  if(pCache->valid[victim_lookup] && pCache->dirty[victim_lookup])
+  {
+    pCache->dirty[victim_lookup] = false;
+    Cache_set_write_back(pCache, victim_lookup);
+    ret_val = WRITE_BACK;
+  }
+  
+  pCache->tagstore[victim_lookup] = tag;
+  pCache->prefetched[victim_lookup] = false;
+  pCache->valid[victim_lookup] = true;
+  time(&pCache->last_access[victim_lookup]);
+  return ret_val;
+}
+
+CacheStatus Cache_find(Cache* pCache, uint64_t tag, uint64_t index, bool dirty)
+{
   for(unsigned way = 0; way < pCache->ways; way++)
   {
     uint64_t lookup = Cache_lookup_calc(pCache, way, index);
-    //Bookkeep who we should evict if needed
-    if(!pCache->valid[lookup] || pCache->last_access[lookup] < pCache->last_access[victim_lookup])
-    {
-      victim_lookup = lookup;
-    }
-
     if(pCache->valid[lookup] && pCache->tagstore[lookup] == tag)
     {
-      //printf("|L%dReadHit", pCache->level);
+      pCache->dirty[lookup] = dirty;
       time(&pCache->last_access[lookup]); // Freshen the LRU
       if(pCache->prefetched[lookup])
       {
@@ -140,23 +133,24 @@ CacheStatus Cache_read(Cache *pCache, uint64_t address)
       return HIT;
     }
   }
-  //printf("|L%dReadMiss", pCache->level);
+  return MISS;
+}
 
-  CacheStatus ret_val;
-
-  if(pCache->valid[victim_lookup] && pCache->dirty[victim_lookup])
+uint64_t Cache_victim_lookup(Cache* pCache, uint64_t tag, uint64_t index)
+{
+  time_t min_time;
+  uint64_t min_lookup;
+  time(&min_time);
+  for(unsigned way = 0; way < pCache->ways; way++)
   {
-    pCache->dirty[victim_lookup] = false;
-    Cache_set_write_back(pCache, victim_lookup);
-    ret_val = WRITE_BACK;
-  }else{
-    ret_val = MISS;
+    uint64_t lookup = Cache_lookup_calc(pCache, way, index);
+    if(!pCache->valid[lookup] || pCache->last_access[lookup] < min_time)
+    {
+      min_lookup = lookup;
+      min_time = pCache->last_access[lookup];
+    }
   }
-  pCache->tagstore[victim_lookup] = tag;
-  pCache->prefetched[victim_lookup] = false;
-  pCache->valid[victim_lookup] = true;
-  time(&pCache->last_access[victim_lookup]);
-  return ret_val;
+  return min_lookup;
 }
 
 void Cache_set_write_back(Cache *pCache, uint64_t line)
