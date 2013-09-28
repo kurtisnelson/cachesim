@@ -34,7 +34,7 @@ CacheStatus Cache_write(Cache *pCache, uint64_t address)
 {
   uint64_t index = Cache_index_calc(pCache, address);
   uint64_t tag = Cache_tag_calc(pCache, address);
-  uint64_t victim_lookup = index;
+  uint64_t victim_lookup = Cache_lookup_calc(pCache, 0, index);
 
   for(unsigned way = 0; way < pCache->ways; way++)
   {
@@ -116,7 +116,7 @@ CacheStatus Cache_read(Cache *pCache, uint64_t address)
 {
   uint64_t index = Cache_index_calc(pCache, address);
   uint64_t tag = Cache_tag_calc(pCache, address);
-  uint64_t victim_lookup = index;
+  uint64_t victim_lookup = Cache_lookup_calc(pCache, 0, index);
   //printf("|r|%llx", address);
 
   for(unsigned way = 0; way < pCache->ways; way++)
@@ -176,7 +176,11 @@ uint64_t Cache_tag_calc(Cache *pCache, uint64_t address)
 uint64_t Cache_lookup_calc(Cache *pCache, int way, uint64_t index)
 {
   int chunkSize = pCache->lines / pCache->ways;
-  return (way * chunkSize) + index;
+  uint64_t lookup = (way * chunkSize) + index;
+  //printf("Way: %i chunkSize: %i index: %llu lookup: %llu\n", way, chunkSize, index, lookup);
+  if(lookup >= pCache->lines)
+                 exit(34);
+  return lookup;
 }
 
 int Cache_index_length(Cache *pCache)
@@ -187,7 +191,7 @@ int Cache_index_length(Cache *pCache)
 uint64_t Cache_index_calc(Cache *pCache, uint64_t address)
 {
   address = address >> pCache->b; // throw away offset
-  address &= createMask(0, Cache_index_length(pCache));
+  address &= createMask(0, Cache_index_length(pCache) - 1);
   return address;
 }
 
