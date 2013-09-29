@@ -91,6 +91,25 @@ CacheStatus Cache_prefetch(Cache *pCache, uint64_t address)
   return ret_val;
 }
 
+uint64_t Cache_execute_prefetch(Cache *pCache)
+{
+  uint64_t x_block = (pCache->prefetch_addr >> pCache->b) << pCache->b; //zero offset
+  uint64_t d = x_block - pCache->last_miss_addr;
+  pCache->last_miss_addr = x_block;
+  uint64_t count = 0;
+  if(d == pCache->pending_stride)
+  {
+    for(int i = 1; i <= pCache->k; i++)
+    {
+       CacheStatus status = Cache_prefetch(pCache, (pCache->prefetch_addr + (i * pCache->pending_stride)));
+       if(status != HIT)
+        count++;
+    }
+  }
+  pCache->pending_stride = d;
+  return count;
+}
+
 CacheStatus Cache_read(Cache *pCache, uint64_t address)
 {
   uint64_t index = Cache_index_calc(pCache, address);

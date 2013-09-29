@@ -15,7 +15,8 @@ typedef struct
         bool* valid;
         time_t* last_access;
         int level;
-        uint64_t write_back;
+        uint64_t pending_stride, last_miss_addr;
+        uint64_t write_back, prefetch_addr;
         uint64_t c, b, s, k;
         uint64_t lines, ways;
 } Cache;
@@ -30,6 +31,7 @@ typedef enum
 
 void Cache_construct(Cache*, uint64_t c, uint64_t b, uint64_t s, int level);
 void Cache_destroy(Cache*);
+uint64_t Cache_execute_prefetch(Cache *pCache);
 CacheStatus Cache_read(Cache*, uint64_t address);
 CacheStatus Cache_write(Cache*, uint64_t address);
 CacheStatus Cache_prefetch(Cache*, uint64_t address);

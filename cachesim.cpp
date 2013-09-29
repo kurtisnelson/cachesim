@@ -70,6 +70,8 @@ void cache_access(char rw, uint64_t address, cache_stats_t* p_stats) {
     if(status == MISS)
     {
           status = Cache_read(&l2, address);
+          if(status == MISS)
+            l2.prefetch_addr = address;
           tally(p_stats, status, 2, rw);
     }
     else if(status == WRITE_BACK)
@@ -84,6 +86,8 @@ void cache_access(char rw, uint64_t address, cache_stats_t* p_stats) {
     if(status == MISS)
     {
       status = Cache_write(&l2, address);
+      if(status == MISS)
+        l2.prefetch_addr = address;
       tally(p_stats, status, 2, rw);
     }
     else if(status == WRITE_BACK)
@@ -91,9 +95,12 @@ void cache_access(char rw, uint64_t address, cache_stats_t* p_stats) {
       status = Cache_write(&l2, l1.write_back);
       tally(p_stats, status, 2, rw);
       status = Cache_write(&l2, address);
+      if(status == MISS)
+        l2.prefetch_addr = address;
       tally(p_stats, status, 2, rw);
     }
   }
+  p_stats->prefetched_blocks += Cache_execute_prefetch(&l2);
   //printf("\n");
   access++;
 }
