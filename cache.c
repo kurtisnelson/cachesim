@@ -56,11 +56,12 @@ CacheStatus Cache_write(Cache *pCache, uint64_t address)
 
 CacheStatus Cache_prefetch(Cache *pCache, uint64_t address)
 {
+  unsigned way;
   uint64_t index = Cache_index_calc(pCache, address);
   uint64_t tag = Cache_tag_calc(pCache, address);
   uint64_t victim_lookup = index;
 
-  for(unsigned way = 0; way < pCache->ways; way++)
+  for(way = 0; way < pCache->ways; way++)
   {
     uint64_t lookup = Cache_lookup_calc(pCache, way, index);
     //Bookkeep who we should evict if needed
@@ -93,13 +94,14 @@ CacheStatus Cache_prefetch(Cache *pCache, uint64_t address)
 
 uint64_t Cache_execute_prefetch(Cache *pCache)
 {
+  unsigned i;
   uint64_t x_block = (pCache->prefetch_addr >> pCache->b) << pCache->b; //zero offset
   uint64_t d = x_block - pCache->last_miss_addr;
   pCache->last_miss_addr = x_block;
   uint64_t count = 0;
   if(d == pCache->pending_stride)
   {
-    for(int i = 1; i <= pCache->k; i++)
+    for(i = 1; i <= pCache->k; i++)
     {
        CacheStatus status = Cache_prefetch(pCache, (pCache->prefetch_addr + (i * pCache->pending_stride)));
        if(status != HIT)
@@ -137,7 +139,8 @@ CacheStatus Cache_read(Cache *pCache, uint64_t address)
 
 CacheStatus Cache_find(Cache* pCache, uint64_t tag, uint64_t index, bool dirty)
 {
-  for(unsigned way = 0; way < pCache->ways; way++)
+  unsigned way;
+  for(way = 0; way < pCache->ways; way++)
   {
     uint64_t lookup = Cache_lookup_calc(pCache, way, index);
     if(pCache->valid[lookup] && pCache->tagstore[lookup] == tag)
@@ -157,10 +160,11 @@ CacheStatus Cache_find(Cache* pCache, uint64_t tag, uint64_t index, bool dirty)
 
 uint64_t Cache_victim_lookup(Cache* pCache, uint64_t tag, uint64_t index)
 {
+  unsigned way;
   uint64_t min_lookup = Cache_lookup_calc(pCache, 0, index);
   time_t min_time = pCache->last_access[min_lookup];
 
-  for(unsigned way = 1; way < pCache->ways; way++)
+  for(way = 1; way < pCache->ways; way++)
   {
     uint64_t lookup = Cache_lookup_calc(pCache, way, index);
     if(!pCache->valid[lookup] || pCache->last_access[lookup] < min_time)
@@ -215,8 +219,9 @@ uint64_t Cache_lines(Cache *pCache)
 
 unsigned createMask(unsigned a, unsigned b)
 {
+  unsigned i;
   unsigned r = 0;
-  for (unsigned i=a; i<=b; i++)
+  for (i=a; i<=b; i++)
     r |= 1 << i;
   return r;
 }
