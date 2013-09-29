@@ -67,10 +67,32 @@ void cache_access(char rw, uint64_t address, cache_stats_t* p_stats) {
     p_stats->reads++;
     status = Cache_read(&l1, address);
     tally(p_stats, status, 1, rw);
+    if(status == MISS)
+    {
+          status = Cache_read(&l2, address);
+          tally(p_stats, status, 2, rw);
+    }
+    else if(status == WRITE_BACK)
+    {
+          status = Cache_write(&l2, l1.write_back);
+          tally(p_stats, status, 2, rw);
+    }
   }else{
     p_stats->writes++;
     status = Cache_write(&l1, address);
     tally(p_stats, status, 1, rw);
+    if(status == MISS)
+    {
+      status = Cache_write(&l2, address);
+      tally(p_stats, status, 2, rw);
+    }
+    else if(status == WRITE_BACK)
+    {
+      status = Cache_write(&l2, l1.write_back);
+      tally(p_stats, status, 2, rw);
+      status = Cache_write(&l2, address);
+      tally(p_stats, status, 2, rw);
+    }
   }
   //printf("\n");
   access++;
