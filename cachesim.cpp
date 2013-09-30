@@ -1,37 +1,6 @@
 #include "cachesim.hpp"
 #include "cache.c"
 Cache l1, l2;
-int access;
-
-void tally(cache_stats_t* p_stats, CacheStatus status, int level, char rw)
-{
-    if(level == 1){
-      p_stats->L1_accesses++;
-    }
-
-    if(status == HIT || status == PREFETCH_HIT)
-    {
-      if(status == PREFETCH_HIT)
-              p_stats->successful_prefetches++;
-
-    }else{
-      if(rw == READ){
-        if(level == 1){
-          p_stats->L1_read_misses++;
-        }else{
-          p_stats->L2_read_misses++;
-        }
-      }else{
-        if(level == 1){
-          p_stats->L1_write_misses++;
-        }else{
-          p_stats->L2_write_misses++;
-        }
-      }
-      if(status == WRITE_BACK && level == 2)
-        p_stats->write_backs++;
-    }
-}
 
 /**
  * Subroutine for initializing the cache. You many add and initialize any global or heap
@@ -49,7 +18,6 @@ void setup_cache(uint64_t c1, uint64_t b1, uint64_t s1, uint64_t c2, uint64_t b2
   Cache_construct(&l1, c1, b1, s1, 1);
   Cache_construct(&l2, c2, b2, s2, 2);
   l2.k = k;
-  access = 0;
 }
 
 /**
@@ -61,7 +29,7 @@ void setup_cache(uint64_t c1, uint64_t b1, uint64_t s1, uint64_t c2, uint64_t b2
  */
 void cache_access(char rw, uint64_t address, cache_stats_t* p_stats) {
   CacheStatus status;
-  access++;
+  p_stats->L1_accesses++;
   if(rw == READ)
   {
     p_stats->reads++;
@@ -70,32 +38,45 @@ void cache_access(char rw, uint64_t address, cache_stats_t* p_stats) {
     p_stats->writes++;
     status = Cache_write(&l1, address);
   }
-  tally(p_stats, status, 1, rw);
 
-  if(status == HIT || status == PREFETCH_HIT){
+  if(status == HIT || status == PREFETCH_HIT)
     return;
-  }
 
   //L2 is involved
   if(status == WRITE_BACK)
   {
     status = Cache_write(&l2, l1.write_back);
-    tally(p_stats, status, 2, WRITE);
+    if(status == MISS || status == WRITE_BACK)
+            p_stats->L2_write_misses++;
+    if(status == WRITE_BACK)
+            p_stats->write_backs++;
   }
 
   if(rw == READ)
   {
+     p_stats->L1_read_misses++;
      status = Cache_read(&l2, address);
   }else{
+     p_stats->L1_write_misses++;
      status = Cache_write(&l2, address);
   }
-  tally(p_stats, status, 2, rw);
+
+  if(status == PREFETCH_HIT)
+    p_stats->successful_prefetches++;
+
+  if(status == WRITE_BACK)
+     p_stats->write_backs++;
 
   if(status == MISS || status == WRITE_BACK)
   {
+     if(rw == READ)
+        p_stats->L2_read_misses++;
+     if(rw == WRITE)
+        p_stats->L2_write_misses++;
      l2.prefetch_addr = address;
      p_stats->prefetched_blocks += Cache_execute_prefetch(&l2);
   }
+  //printf("\n");
 }
 
 /**

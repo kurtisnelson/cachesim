@@ -31,6 +31,7 @@ typedef enum
 
 void Cache_construct(Cache*, uint64_t c, uint64_t b, uint64_t s, int level);
 void Cache_destroy(Cache*);
+clock_t Cache_min_lru(Cache *pCache, uint64_t index);
 uint64_t Cache_execute_prefetch(Cache *pCache);
 CacheStatus Cache_read(Cache*, uint64_t address);
 CacheStatus Cache_write(Cache*, uint64_t address);

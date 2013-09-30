@@ -37,7 +37,7 @@ CacheStatus Cache_write(Cache *pCache, uint64_t address)
   CacheStatus ret_val;
 
   ret_val = Cache_find(pCache, tag, index, true, true);
-  if(ret_val != MISS)
+  if(ret_val == HIT || ret_val == PREFETCH_HIT)
           return ret_val;
 
   uint64_t victim_lookup = Cache_victim_lookup(pCache, tag, index);
@@ -73,7 +73,7 @@ CacheStatus Cache_prefetch(Cache *pCache, uint64_t address)
   }else{
      ret_val = MISS;
   }
-  pCache->last_access[victim_lookup] = 0;
+  pCache->last_access[victim_lookup] = Cache_min_lru(pCache, index) - 1;
   pCache->prefetched[victim_lookup] = true;
   pCache->tagstore[victim_lookup] = tag;
   pCache->dirty[victim_lookup] = false;
@@ -81,6 +81,21 @@ CacheStatus Cache_prefetch(Cache *pCache, uint64_t address)
   return ret_val;
 }
 
+clock_t Cache_min_lru(Cache *pCache, uint64_t index)
+{
+  clock_t min = clock();
+  int way;
+  int chunkSize = pCache->lines / pCache->ways;
+  for(way = 0; way < pCache->ways; way++)
+  {
+    clock_t tmp = pCache->last_access[(way*chunkSize) + index];
+    if(tmp < min)
+            min = tmp;
+  }
+  if(min <= 0)
+          return 1;
+  return min;
+}
 uint64_t Cache_execute_prefetch(Cache *pCache)
 {
   unsigned i;
@@ -106,10 +121,11 @@ CacheStatus Cache_read(Cache *pCache, uint64_t address)
   //printf("0x%llx @ L%i\n", address, pCache->level);
   uint64_t index = Cache_index_calc(pCache, address);
   uint64_t tag = Cache_tag_calc(pCache, address);
+  //printf("0x%llu 0x%llu\n", tag, index);
   CacheStatus ret_val;
 
   ret_val = Cache_find(pCache, tag, index, false, true);
-  if(ret_val != MISS)
+  if(ret_val == HIT || ret_val == PREFETCH_HIT)
           return ret_val;
 
   uint64_t victim_lookup = Cache_victim_lookup(pCache, tag, index);
@@ -135,13 +151,14 @@ CacheStatus Cache_find(Cache* pCache, uint64_t tag, uint64_t index, bool dirty, 
   for(way = 0; way < pCache->ways; way++)
   {
     uint64_t lookup = Cache_lookup_calc(pCache, way, index);
+    //if(pCache->level == 2)
+    //        printf("\tlookup: %llu tag: %llu tagstore: %llu\n", lookup, tag, pCache->tagstore[lookup]);
     if(pCache->valid[lookup] && pCache->tagstore[lookup] == tag)
     {
       if(bookkeep)
       {
               pCache->dirty[lookup] = dirty;
               pCache->last_access[lookup] = clock(); // Freshen the LRU
-      //printf("\tFound Line: %llu (Way %u)\n", lookup, way);
       if(pCache->prefetched[lookup])
       {
         pCache->prefetched[lookup] = false;
@@ -151,7 +168,6 @@ CacheStatus Cache_find(Cache* pCache, uint64_t tag, uint64_t index, bool dirty, 
       return HIT;
     }
   }
-  //printf("\tNot found\n");
   return MISS;
 }
 
@@ -160,14 +176,13 @@ uint64_t Cache_victim_lookup(Cache* pCache, uint64_t tag, uint64_t index)
   unsigned way;
   uint64_t min_lookup = Cache_lookup_calc(pCache, 0, index);
   clock_t min_time = pCache->last_access[min_lookup];
-
+  if(min_time == 0)
+          return min_lookup;
   for(way = 1; way < pCache->ways; way++)
   {
     uint64_t lookup = Cache_lookup_calc(pCache, way, index);
     //printf("\tPossible Victim\n");
     //printf("\t\tline: %llu way: %u time: %ld\n", lookup, way, pCache->last_access[lookup]);
-    if(!pCache->valid[lookup])
-            return lookup;
     if(pCache->last_access[lookup] < min_time)
     {
       min_lookup = lookup;
@@ -195,7 +210,6 @@ uint64_t Cache_lookup_calc(Cache *pCache, int way, uint64_t index)
 {
   int chunkSize = pCache->lines / pCache->ways;
   uint64_t lookup = (way * chunkSize) + index;
-  //printf("Way: %i chunkSize: %i index: %llu lookup: %llu\n", way, chunkSize, index, lookup);
   if(lookup >= pCache->lines)
                  exit(34);
   return lookup;
