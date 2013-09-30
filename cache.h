@@ -13,7 +13,7 @@ typedef struct
         bool* dirty;
         bool* prefetched;
         bool* valid;
-        time_t* last_access;
+        clock_t* last_access;
         int level;
         uint64_t pending_stride, last_miss_addr;
         uint64_t write_back, prefetch_addr;
@@ -35,7 +35,7 @@ uint64_t Cache_execute_prefetch(Cache *pCache);
 CacheStatus Cache_read(Cache*, uint64_t address);
 CacheStatus Cache_write(Cache*, uint64_t address);
 CacheStatus Cache_prefetch(Cache*, uint64_t address);
-CacheStatus Cache_find(Cache*, uint64_t tag, uint64_t index, bool dirty);
+CacheStatus Cache_find(Cache*, uint64_t tag, uint64_t index, bool dirty, bool);
 void Cache_set_write_back(Cache*, uint64_t line);
 uint64_t Cache_victim_lookup(Cache* pCache, uint64_t tag, uint64_t index);
 uint64_t Cache_tag_calc(Cache *pCache, uint64_t address);

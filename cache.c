@@ -12,7 +12,7 @@ void Cache_construct(Cache *pCache, uint64_t c, uint64_t b, uint64_t s, int leve
   pCache->dirty = (bool *)calloc(pCache->lines, sizeof(bool));
   pCache->valid = (bool *)calloc(pCache->lines, sizeof(bool));
   pCache->prefetched = (bool *)calloc(pCache->lines, sizeof(bool));
-  pCache->last_access = (time_t *)calloc(pCache->lines, sizeof(time_t));
+  pCache->last_access = (clock_t *)calloc(pCache->lines, sizeof(clock_t));
 
   if(!pCache->tagstore || !pCache->dirty || !pCache->prefetched || !pCache->last_access || !pCache->valid)
   {
@@ -36,7 +36,7 @@ CacheStatus Cache_write(Cache *pCache, uint64_t address)
   uint64_t tag = Cache_tag_calc(pCache, address);
   CacheStatus ret_val;
 
-  ret_val = Cache_find(pCache, tag, index, true);
+  ret_val = Cache_find(pCache, tag, index, true, true);
   if(ret_val != MISS)
           return ret_val;
 
@@ -49,35 +49,24 @@ CacheStatus Cache_write(Cache *pCache, uint64_t address)
   pCache->tagstore[victim_lookup] = tag;
   pCache->valid[victim_lookup] = true;
   pCache->prefetched[victim_lookup] = false;
-  time(&pCache->last_access[victim_lookup]);
+  pCache->last_access[victim_lookup] = clock();
 
   return ret_val;
 }
 
 CacheStatus Cache_prefetch(Cache *pCache, uint64_t address)
 {
-  unsigned way;
   uint64_t index = Cache_index_calc(pCache, address);
   uint64_t tag = Cache_tag_calc(pCache, address);
-  uint64_t victim_lookup = index;
-
-  for(way = 0; way < pCache->ways; way++)
-  {
-    uint64_t lookup = Cache_lookup_calc(pCache, way, index);
-    //Bookkeep who we should evict if needed
-    if(pCache->last_access[lookup] < pCache->last_access[victim_lookup])
-    {
-      victim_lookup = lookup;
-    }
-
-    if(pCache->valid[lookup] && pCache->tagstore[lookup] == tag)
-    {
-      return HIT;
-    }
-  }
-
   CacheStatus ret_val;
-  if(pCache->valid[victim_lookup] && pCache->dirty[victim_lookup])
+
+  ret_val = Cache_find(pCache, tag, index, false, false);
+  if(ret_val == HIT)
+          return ret_val;
+
+  uint64_t victim_lookup = Cache_victim_lookup(pCache, tag, index);
+
+  if(pCache->dirty[victim_lookup])
   {
      Cache_set_write_back(pCache, victim_lookup);
      ret_val = WRITE_BACK;
@@ -114,17 +103,20 @@ uint64_t Cache_execute_prefetch(Cache *pCache)
 
 CacheStatus Cache_read(Cache *pCache, uint64_t address)
 {
+  //printf("0x%llx @ L%i\n", address, pCache->level);
   uint64_t index = Cache_index_calc(pCache, address);
   uint64_t tag = Cache_tag_calc(pCache, address);
   CacheStatus ret_val;
 
-  ret_val = Cache_find(pCache, tag, index, false);
+  ret_val = Cache_find(pCache, tag, index, false, true);
   if(ret_val != MISS)
           return ret_val;
 
   uint64_t victim_lookup = Cache_victim_lookup(pCache, tag, index);
+  //printf("\tVictim Line: %llu\n", victim_lookup);
   if(pCache->valid[victim_lookup] && pCache->dirty[victim_lookup])
   {
+    //printf("\tWRITE_BACK\n");
     pCache->dirty[victim_lookup] = false;
     Cache_set_write_back(pCache, victim_lookup);
     ret_val = WRITE_BACK;
@@ -133,11 +125,11 @@ CacheStatus Cache_read(Cache *pCache, uint64_t address)
   pCache->tagstore[victim_lookup] = tag;
   pCache->prefetched[victim_lookup] = false;
   pCache->valid[victim_lookup] = true;
-  time(&pCache->last_access[victim_lookup]);
+  pCache->last_access[victim_lookup] = clock();
   return ret_val;
 }
 
-CacheStatus Cache_find(Cache* pCache, uint64_t tag, uint64_t index, bool dirty)
+CacheStatus Cache_find(Cache* pCache, uint64_t tag, uint64_t index, bool dirty, bool bookkeep)
 {
   unsigned way;
   for(way = 0; way < pCache->ways; way++)
@@ -145,16 +137,21 @@ CacheStatus Cache_find(Cache* pCache, uint64_t tag, uint64_t index, bool dirty)
     uint64_t lookup = Cache_lookup_calc(pCache, way, index);
     if(pCache->valid[lookup] && pCache->tagstore[lookup] == tag)
     {
-      pCache->dirty[lookup] = dirty;
-      time(&pCache->last_access[lookup]); // Freshen the LRU
+      if(bookkeep)
+      {
+              pCache->dirty[lookup] = dirty;
+              pCache->last_access[lookup] = clock(); // Freshen the LRU
+      //printf("\tFound Line: %llu (Way %u)\n", lookup, way);
       if(pCache->prefetched[lookup])
       {
         pCache->prefetched[lookup] = false;
         return PREFETCH_HIT;
       }
+      }
       return HIT;
     }
   }
+  //printf("\tNot found\n");
   return MISS;
 }
 
@@ -162,12 +159,16 @@ uint64_t Cache_victim_lookup(Cache* pCache, uint64_t tag, uint64_t index)
 {
   unsigned way;
   uint64_t min_lookup = Cache_lookup_calc(pCache, 0, index);
-  time_t min_time = pCache->last_access[min_lookup];
+  clock_t min_time = pCache->last_access[min_lookup];
 
   for(way = 1; way < pCache->ways; way++)
   {
     uint64_t lookup = Cache_lookup_calc(pCache, way, index);
-    if(!pCache->valid[lookup] || pCache->last_access[lookup] < min_time)
+    //printf("\tPossible Victim\n");
+    //printf("\t\tline: %llu way: %u time: %ld\n", lookup, way, pCache->last_access[lookup]);
+    if(!pCache->valid[lookup])
+            return lookup;
+    if(pCache->last_access[lookup] < min_time)
     {
       min_lookup = lookup;
       min_time = pCache->last_access[lookup];
