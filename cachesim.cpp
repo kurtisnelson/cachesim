@@ -15,6 +15,7 @@ typedef struct
         bool* prefetched;
         bool* valid;
         clock_t* last_access;
+        clock_t clock;
         int level;
         uint64_t pending_stride, last_miss_addr;
         uint64_t write_back, prefetch_addr;
@@ -41,8 +42,8 @@ CacheStatus Cache_find(Cache*, uint64_t tag, uint64_t index, bool dirty, bool);
 void Cache_set_write_back(Cache*, uint64_t line);
 uint64_t Cache_victim_lookup(Cache* pCache, uint64_t tag, uint64_t index);
 uint64_t Cache_tag_calc(Cache *pCache, uint64_t address);
-uint64_t Cache_lookup_calc(Cache *pCache, int way, uint64_t index);
-int Cache_index_length(Cache*);
+uint64_t Cache_lookup_calc(Cache *pCache, unsigned way, uint64_t index);
+unsigned Cache_index_length(Cache*);
 uint64_t Cache_index_calc(Cache *pCache, uint64_t address);
 uint64_t Cache_lines(Cache*);
 unsigned createMask(unsigned, unsigned);
@@ -60,6 +61,7 @@ void Cache_construct(Cache *pCache, uint64_t c, uint64_t b, uint64_t s, int leve
   pCache->valid = (bool *)calloc(pCache->lines, sizeof(bool));
   pCache->prefetched = (bool *)calloc(pCache->lines, sizeof(bool));
   pCache->last_access = (clock_t *)calloc(pCache->lines, sizeof(clock_t));
+  pCache->clock = 0;
 
   if(!pCache->tagstore || !pCache->dirty || !pCache->prefetched || !pCache->last_access || !pCache->valid)
   {
@@ -96,7 +98,7 @@ CacheStatus Cache_write(Cache *pCache, uint64_t address)
   pCache->tagstore[victim_lookup] = tag;
   pCache->valid[victim_lookup] = true;
   pCache->prefetched[victim_lookup] = false;
-  pCache->last_access[victim_lookup] = clock();
+  pCache->last_access[victim_lookup] = pCache->clock;
 
   return ret_val;
 }
@@ -129,9 +131,9 @@ CacheStatus Cache_prefetch(Cache *pCache, uint64_t address)
 
 clock_t Cache_min_lru(Cache *pCache, uint64_t index)
 {
-  clock_t min = clock();
-  int way;
-  int chunkSize = pCache->lines / pCache->ways;
+  clock_t min = pCache->clock + 1;
+  uint64_t way;
+  uint64_t chunkSize = pCache->lines / pCache->ways;
   for(way = 0; way < pCache->ways; way++)
   {
     clock_t tmp = pCache->last_access[(way*chunkSize) + index];
@@ -189,7 +191,7 @@ CacheStatus Cache_read(Cache *pCache, uint64_t address)
   pCache->tagstore[victim_lookup] = tag;
   pCache->prefetched[victim_lookup] = false;
   pCache->valid[victim_lookup] = true;
-  pCache->last_access[victim_lookup] = clock();
+  pCache->last_access[victim_lookup] = pCache->clock;
   return ret_val;
 }
 
@@ -206,7 +208,7 @@ CacheStatus Cache_find(Cache* pCache, uint64_t tag, uint64_t index, bool dirty, 
       if(bookkeep)
       {
               pCache->dirty[lookup] = dirty;
-              pCache->last_access[lookup] = clock(); // Freshen the LRU
+              pCache->last_access[lookup] = pCache->clock; // Freshen the LRU
       if(pCache->prefetched[lookup])
       {
         pCache->prefetched[lookup] = false;
@@ -254,16 +256,16 @@ uint64_t Cache_tag_calc(Cache *pCache, uint64_t address)
   return address >> (pCache->b + Cache_index_length(pCache));
 }
 
-uint64_t Cache_lookup_calc(Cache *pCache, int way, uint64_t index)
+uint64_t Cache_lookup_calc(Cache *pCache, unsigned way, uint64_t index)
 {
-  int chunkSize = pCache->lines / pCache->ways;
+  unsigned chunkSize = pCache->lines / pCache->ways;
   uint64_t lookup = (way * chunkSize) + index;
   if(lookup >= pCache->lines)
                  exit(34);
   return lookup;
 }
 
-int Cache_index_length(Cache *pCache)
+unsigned Cache_index_length(Cache *pCache)
 {
   return pCache->c - pCache->s - pCache->b;
 }
@@ -364,6 +366,8 @@ void cache_access(char rw, uint64_t address, cache_stats_t* p_stats) {
      l2.prefetch_addr = address;
      p_stats->prefetched_blocks += Cache_execute_prefetch(&l2, p_stats);
   }
+  l1.clock++;
+  l2.clock++;
   //printf("\n");
 }
 
