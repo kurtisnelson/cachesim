@@ -244,11 +244,14 @@ uint64_t Cache_victim_lookup(Cache* pCache, uint64_t tag, uint64_t index)
 
 void Cache_set_write_back(Cache *pCache, uint64_t line)
 {
+  pCache->write_back_addr = 0;
   pCache->write_back_addr = pCache->tagstore[line] << (pCache->b + Cache_index_length(pCache));
-  while(line >= pCache->lines)
-    line -= pCache->lines;
-  pCache->write_back_addr = pCache->write_back_addr || line;
-  pCache->write_back_addr = pCache->write_back_addr << pCache->b;
+  line = line % (pCache->lines / pCache->ways);
+  pCache->write_back_addr += line << pCache->b;
+
+  uint64_t verify = Cache_index_calc(pCache, pCache->write_back_addr);
+  if(verify != line)
+          exit(123);
   pCache->write_back = true;
 }
 
