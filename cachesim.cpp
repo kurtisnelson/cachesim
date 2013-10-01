@@ -61,7 +61,7 @@ void Cache_construct(Cache *pCache, uint64_t c, uint64_t b, uint64_t s, int leve
   pCache->valid = (bool *)calloc(pCache->lines, sizeof(bool));
   pCache->prefetched = (bool *)calloc(pCache->lines, sizeof(bool));
   pCache->last_access = (clock_t *)calloc(pCache->lines, sizeof(clock_t));
-  pCache->clock = 0;
+  pCache->clock = 1;
 
   if(!pCache->tagstore || !pCache->dirty || !pCache->prefetched || !pCache->last_access || !pCache->valid)
   {
@@ -110,8 +110,8 @@ CacheStatus Cache_prefetch(Cache *pCache, uint64_t address)
   CacheStatus ret_val;
 
   ret_val = Cache_find(pCache, tag, index, false, false);
-  if(ret_val == HIT)
-          return ret_val;
+  if(ret_val == HIT || ret_val == PREFETCH_HIT)
+          return HIT;
 
   uint64_t victim_lookup = Cache_victim_lookup(pCache, tag, index);
 
@@ -209,11 +209,12 @@ CacheStatus Cache_find(Cache* pCache, uint64_t tag, uint64_t index, bool dirty, 
       {
               pCache->dirty[lookup] = dirty;
               pCache->last_access[lookup] = pCache->clock; // Freshen the LRU
-      if(pCache->prefetched[lookup])
-      {
-        pCache->prefetched[lookup] = false;
-        return PREFETCH_HIT;
-      }
+              pCache->clock++;
+              if(pCache->prefetched[lookup])
+              {
+                pCache->prefetched[lookup] = false;
+                return PREFETCH_HIT;
+              }
       }
       return HIT;
     }
@@ -329,7 +330,7 @@ void cache_access(char rw, uint64_t address, cache_stats_t* p_stats) {
     status = Cache_write(&l1, address);
   }
 
-  if(status == HIT || status == PREFETCH_HIT)
+  if(status == HIT)
     return;
 
   //L2 is involved
