@@ -160,6 +160,7 @@ uint64_t Cache_execute_prefetch(Cache *pCache, cache_stats_t* p_stats)
         count++;
        if(status == WRITE_BACK)
         p_stats->write_backs++;
+       pCache->clock++;
     }
   }
   pCache->pending_stride = d;
@@ -319,57 +320,56 @@ void setup_cache(uint64_t c1, uint64_t b1, uint64_t s1, uint64_t c2, uint64_t b2
  * @p_stats Pointer to the statistics structure
  */
 void cache_access(char rw, uint64_t address, cache_stats_t* p_stats) {
-  CacheStatus status;
+  CacheStatus l1_status, l2_status;
   p_stats->L1_accesses++;
+  l1.clock++;
+  l2.clock++;
   if(rw == READ)
   {
     p_stats->reads++;
-    status = Cache_read(&l1, address);
+    l1_status = Cache_read(&l1, address);
+    if(l1_status == HIT)
+            return;
+
+    if(l1_status == MISS || l1_status == WRITE_BACK)
+            p_stats->L1_read_misses++;
+    if(l1_status == WRITE_BACK){
+      l2_status = Cache_write(&l2, l1.write_back);
+      if(l2_status == MISS || l2_status == WRITE_BACK)
+              p_stats->L2_write_misses++;
+      if(l2_status == WRITE_BACK)
+              p_stats->write_backs++;
+    }
+
+    l2_status = Cache_read(&l2, address);
   }else{
     p_stats->writes++;
-    status = Cache_write(&l1, address);
+    l1_status = Cache_write(&l1, address);
+    if(l1_status == HIT)
+          return;
+
+    if(l1_status == MISS || l1_status == WRITE_BACK)
+            p_stats->L1_write_misses++;
+
+    if(l1_status == WRITE_BACK){
+            l2_status = Cache_write(&l2, l1.write_back);
+            if(l2_status == MISS || l2_status == WRITE_BACK)
+                    p_stats->L2_write_misses++;
+            if(l2_status == WRITE_BACK)
+                    p_stats->write_backs++;
+    }
+
+    l2_status = Cache_read(&l2, address);
   }
-
-  if(status == HIT)
-    return;
-
-  //L2 is involved
-  if(status == WRITE_BACK)
-  {
-    status = Cache_write(&l2, l1.write_back);
-    if(status == MISS || status == WRITE_BACK)
-            p_stats->L2_write_misses++;
-    if(status == WRITE_BACK)
-            p_stats->write_backs++;
-  }
-
-  if(rw == READ)
-  {
-     p_stats->L1_read_misses++;
-     status = Cache_read(&l2, address);
-  }else{
-     p_stats->L1_write_misses++;
-     status = Cache_write(&l2, address);
-  }
-
-  if(status == PREFETCH_HIT)
+  if(l2_status == PREFETCH_HIT)
     p_stats->successful_prefetches++;
-
-  if(status == WRITE_BACK)
+  if(l2_status == WRITE_BACK)
      p_stats->write_backs++;
-
-  if(status == MISS || status == WRITE_BACK)
-  {
-     if(rw == READ)
-        p_stats->L2_read_misses++;
-     if(rw == WRITE)
-        p_stats->L2_write_misses++;
-     l2.prefetch_addr = address;
-     p_stats->prefetched_blocks += Cache_execute_prefetch(&l2, p_stats);
+  if(l2_status == MISS || l2_status == WRITE_BACK){
+    p_stats->L2_read_misses++;
+    l2.prefetch_addr = address;
+    p_stats->prefetched_blocks += Cache_execute_prefetch(&l2, p_stats);
   }
-  l1.clock++;
-  l2.clock++;
-  //printf("\n");
 }
 
 /**
