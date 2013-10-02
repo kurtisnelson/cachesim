@@ -385,12 +385,12 @@ void cache_access(char rw, uint64_t address, cache_stats_t* p_stats) {
  */
 void complete_cache(cache_stats_t *p_stats) {
   double MP1, MR1, MR2;
-  double HT1 = 2 + 0.2*l1.s;
-  double HT2 = 4 + 0.4*l2.s;
+  double HT1 = 2 + (0.2*l1.s);
+  double HT2 = 4 + (0.4*l2.s);
   double MP2 = 500.0;
 
   MR1 = (double)(p_stats->L1_read_misses + p_stats->L1_write_misses)/(double)p_stats->L1_accesses;
-  MR2 = (double)p_stats->L2_read_misses/(double)(p_stats->L1_read_misses + p_stats->L2_read_misses);
+  MR2 = (double)p_stats->L2_read_misses/((double)(p_stats->L1_read_misses + p_stats->L1_write_misses));
   MP1 = HT2 + (MR2 * MP2);
   p_stats->avg_access_time = HT1 + (MR1 * MP1);
   Cache_destroy(&l1);
