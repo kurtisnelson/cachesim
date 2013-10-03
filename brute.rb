@@ -1,5 +1,4 @@
 require 'pry'
-L1_MAX_BYTES=41952
 L2_MAX_BYTES=196608
 BENCHMARK=ARGV[0]
 
@@ -11,20 +10,24 @@ CacheSpec = Struct.new(:c1, :b1, :s1, :c2, :b2, :s2, :k) do
     return false unless s2 >= s1
     return false unless b1 > 0
     return false unless b2 > 0
-    l1_lines = c1**2 / b1**2
+
+    l1_lines = 2**c1 / 2**b1
     return false unless l1_lines >= 1
     l1_index_len = c1 - s1 - b1
     return false unless l1_index_len >= 1
     l1_tag_len = 64 - b1 - l1_index_len
-    l1_size = (l1_lines * (b1**2 + l1_tag_len + 1))/8
-    return false unless l1_size <= L1_MAX_BYTES
-    l2_lines = c2**2 / b2**2
+    tagstore_size = (64-(c1-s1)+2) * 2**(c1-b1)
+    datastore_size = 2**c1
+    return false unless tagstore_size + datastore_size <= 48 * 1024
+
+    l2_lines = 2**c2 / 2**b2
     return false unless l2_lines >= 1
     l2_index_len = c2 - s2 - b2
     return false unless l2_index_len >= 1
     l2_tag_len = 64 - b2 - l2_index_len
-    l2_size = (l2_lines * (b2**2 + l2_tag_len + 1))/8
-    return false unless l2_size <= L2_MAX_BYTES
+    tagstore_size = (64-(c2-s2)+2) * 2**(c2-b2)
+    datastore_size = 2**c2
+    return false unless tagstore_size + datastore_size <= 192 * 1024
     true
   end
 
@@ -83,7 +86,7 @@ def save_best cache, aat
 end
 
 counter = 0
-best_cache = CacheSpec.new(27,25,0,31,25,0,0)
+best_cache = CacheSpec.new(10,5,1,10,5,1,4)
 File.open("best/#{BENCHMARK}.best", 'r') do |f|
   params = f.readlines[0]
   break unless params
