@@ -75,9 +75,10 @@ def shell_run spec, trace
   end
 end
 
-def save_best cache
+def save_best cache, aat
   File.open("best/#{BENCHMARK}.best", 'w') do |file|
     file.write(cache.to_a.join(','))
+    file.write("\n"+aat.to_s)
   end
 end
 
@@ -102,7 +103,7 @@ trap("SIGINT") do
   puts "Best #{BENCHMARK}:"
   puts best_cache.to_s
   puts "AAT: " + best_aat.to_s
-  save_best best_cache
+  save_best best_cache, best_aat
   exit
 end
 
@@ -131,5 +132,5 @@ while true
     puts cache.to_s
   end
   counter += 1
-  save_best best_cache if counter % 10 == 0
+  save_best best_cache, best_aat if counter % 10 == 0
 end
