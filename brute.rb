@@ -93,6 +93,7 @@ best_aat = shell_run(best_cache, "traces/#{BENCHMARK}.trace")
 trap("SIGINT") do
   puts "Best:"
   puts best_cache.to_s
+  puts "AAT: " + best_aat.to_s
   save_best best_cache
   exit
 end
