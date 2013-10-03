@@ -1,3 +1,4 @@
+require 'pry'
 L1_MAX_BYTES=41952
 L2_MAX_BYTES=196608
 BENCHMARK=ARGV[0]
@@ -60,7 +61,9 @@ def permute_cache(c)
 end
 
 def shell_run spec, trace
-  IO.popen("./cachesim -c #{spec.c1} -b #{spec.b1} -s #{spec.s1} -C #{spec.c2} -B #{spec.b2} -S #{spec.s2} -k #{spec.k}", 'r+') do |ps|
+  args = "-c #{spec.c1} -b #{spec.b1} -s #{spec.s1} -C #{spec.c2} -B #{spec.b2} -S #{spec.s2} -k #{spec.k}"
+  puts args
+  IO.popen("./cachesim #{args}", 'r+') do |ps|
     File.open(trace) do |f|
       f.each_line do |line|
         ps.write(line.chomp)
@@ -80,13 +83,18 @@ end
 
 counter = 0
 best_cache = CacheSpec.new(27,25,0,31,25,0,0)
-File.open("best/#{BENCHMARK}.best", 'w+') do |f|
+File.open("best/#{BENCHMARK}.best", 'r') do |f|
   params = f.readlines[0]
   break unless params
-  params.split(',')
-  (0..6).each do |i|
-    best_cache[i] = params[i].to_i
-  end
+  puts "Loading previous best"
+  params = params.split(',').map {|p| p.to_i}
+  best_cache.c1 = params[0]
+  best_cache.b1 = params[1]
+  best_cache.s1 = params[2]
+  best_cache.c2 = params[3]
+  best_cache.b2 = params[4]
+  best_cache.s2 = params[5]
+  best_cache.k = params[6]
 end
 best_aat = shell_run(best_cache, "traces/#{BENCHMARK}.trace")
 
