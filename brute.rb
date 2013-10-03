@@ -17,8 +17,8 @@ CacheSpec = Struct.new(:c1, :b1, :s1, :c2, :b2, :s2, :k) do
     return false unless l1_index_len >= 1
     l1_tag_len = 64 - b1 - l1_index_len
     tagstore_size = (64-(c1-s1)+2) * 2**(c1-b1)
-    datastore_size = 2**c1
-    return false unless tagstore_size + datastore_size <= 48 * 1024
+    datastore_size = 2**c1 * 8
+    return false unless tagstore_size + datastore_size <= 48 * 1024 * 8
 
     l2_lines = 2**c2 / 2**b2
     return false unless l2_lines >= 1
@@ -26,8 +26,8 @@ CacheSpec = Struct.new(:c1, :b1, :s1, :c2, :b2, :s2, :k) do
     return false unless l2_index_len >= 1
     l2_tag_len = 64 - b2 - l2_index_len
     tagstore_size = (64-(c2-s2)+2) * 2**(c2-b2)
-    datastore_size = 2**c2
-    return false unless tagstore_size + datastore_size <= 192 * 1024
+    datastore_size = 2**c2 * 8
+    return false unless tagstore_size + datastore_size <= 192 * 1024 * 8
     true
   end
 
